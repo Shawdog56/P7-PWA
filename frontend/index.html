@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procesador de Imagenes</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        :root { --primary: #4f46e5; --bg: #0f172a; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); padding: 2rem; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); width: 400px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+        h1 { font-size: 1.5rem; margin-bottom: 1.5rem; text-align: center; color: #818cf8; }
+        label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; color: #94a3b8; }
+        select, input { width: 100%; padding: 10px; margin-bottom: 1rem; border-radius: 8px; border: 1px solid #334155; background: #1e293b; color: white; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; border-radius: 8px; border: none; background: var(--primary); color: white; font-weight: bold; cursor: pointer; transition: transform 0.2s; }
+        button:hover { transform: translateY(-2px); background: #4338ca; }
+        #progressContainer { margin-top: 1.5rem; display: none; }
+        #progressBar { height: 8px; background: var(--primary); border-radius: 4px; width: 0%; transition: width 0.3s; }
+        #statusText { font-size: 0.8rem; color: #94a3b8; margin-top: 8px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Procesador de Imágenes distribuido</h1>
+        <form id="multiImageForm">
+            <label>1. Selecciona el tipo de procesamiento</label>
+            <select id="taskSelect">
+                <option value="GRAYSCALE">Blanco y Nego</option>
+                <option value="EDGES">Detección de bordes</option>
+                <option value="BLUR">Gaussian Blur</option>
+                <option value="SHARPEN">Mejorar detalles</option>
+                <option value="THRESHOLD">Umbral binario (Blanco y negro)</option>
+                <option value="RESIZE">Redimensionar (64x64)</option>
+            </select>
+
+            <label>2. Cargar Imágenes</label>
+            <input type="file" id="imageInput" accept="image/*" multiple>
+            
+            <button type="button" id="sendImagesButton" onclick="sendImages()">Procesar lote</button>
+        </form>
+
+        <div id="progressContainer">
+            <div id="progressBar"></div>
+            <p id="statusText">Listo...</p>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                .then(registration => {
+                    console.log('Service Worker registered with scope:', registration.scope);
+                })
+                .catch(error => {
+                    console.log('Service Worker registration failed:', error);
+                });
+            });
+        }
+        
+        async function sendImages() {
+            const fileInput = document.getElementById('imageInput');
+            const task = document.getElementById('taskSelect').value;
+            const files = fileInput.files;
+            if (files.length === 0) return alert("Select images first");
+
+            $("#progressContainer").fadeIn();
+            const imageList = [];
+            for (let i = 0; i < files.length; i++) {
+                const result = await readFile(files[i]);
+                imageList.push(result);
+            }
+
+            $.ajax({
+                url: "/api/images/process-images?task=" + task,
+                type: "POST",
+                contentType: "application/json",
+                data: JSON.stringify({ files: imageList }), // Send task to server
+                xhrFields: { responseType: 'blob' },
+                success: function(blob) {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "processed_batch.zip";
+                    a.click();
+                    $("#statusText").text("Proceso completado con éxito!");
+                }
+            });
+        }
+
+        const readFile = (file) => new Promise((res) => {
+            const r = new FileReader();
+            r.onloadend = () => res({ filename: file.name, content: r.result.split(',')[1] });
+            r.readAsDataURL(file);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  image_service:
+    build: 
+      context: ./ImgProcService
+      dockerfile: Dockerfile
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  gateway:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      # Inject the Nginx routing rules
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      
+      # INJECT THE FRONTEND FILES HERE
+      - ./frontend:/usr/share/nginx/html:ro
+      
+    depends_on:
+      - image_service
+    restart: unless-stopped
